@@ -22,6 +22,27 @@ object ImplicitChain
 }
   """.trim
 
+  def foundReq = """
+object FoundReq
+{
+  class L
+  type R
+  def f(r: R) = ???
+  f(new L)
+}
+  """.trim
+
+  def bounds = """
+object Bounds
+{
+  trait Base
+  trait Arg
+  trait F[A]
+  implicit def g[A <: Base, B]: F[A] = ???
+  implicitly[F[Arg]]
+}
+  """.trim
+
 
   def show() {
     val global = newCompiler()
@@ -30,12 +51,21 @@ object ImplicitChain
 
     object analyzerPlugin extends AnalyzerPlugin {
       override def noImplicitFoundError(param: Symbol, errors: List[ImpFailReason]): Option[String] = {
-        val chain = errors.map(_.candidateName).mkString(", ")
+        val chain = errors
+          .map {
+            case a @ ImpError(_, _, _, _) => a.candidateName
+            case b @ NonConfBounds(_, _, _, a, p) =>
+              val diff = a.zip(p).map { case (l, r) => s"$l/$r" }.mkString("[", ", ", "]")
+              s"${b.candidateName}: $diff"
+          }
+          .mkString(", ")
         Some(s"no implicit for $param; chains: $chain")
       }
     }
 
     addAnalyzerPlugin(analyzerPlugin)
     compileString(global)(code)
+    compileString(global)(foundReq)
+    compileString(global)(bounds)
   }
 }
