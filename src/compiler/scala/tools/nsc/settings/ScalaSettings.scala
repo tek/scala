@@ -575,4 +575,39 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     */
     None
   }
+
+  object VimplicitsChoices extends MultiChoiceEnumeration {
+    val enable = Choice("enable", "print dependent missing implicits")
+    val disable = Choice("disable", "disable printing dependent missing implicits")
+    val noColor = Choice("no-color", "don't colorize type errors formatted by splain")
+    val verboseTree = Choice("verbose-tree", "display all intermediate implicits in a chain")
+  }
+
+  val VexplainImplicits: MultiChoiceSetting[VimplicitsChoices.type] =
+    MultiChoiceSetting(
+      name = "-Vexplain-implicits",
+      helpArg = "feature",
+      descr = "print dependent missing implicits",
+      domain = VimplicitsChoices,
+      default = Some("enable" :: Nil),
+    ).withPostSetHook(_ => enableVexplainImplicitsImplicitly())
+
+  def enableVexplainImplicitsImplicitly(): Unit =
+    if (!VexplainImplicits.contains(VimplicitsChoices.disable) && !VexplainImplicits.contains(VimplicitsChoices.enable))
+      VexplainImplicits.enable(VimplicitsChoices.enable)
+
+  val VimplicitsTruncRefined: IntSetting =
+    IntSetting(
+      "-Yexplain-implicits-max-refined",
+      "max chars for printing refined types, abbreviate to `F {...}`",
+      0,
+      Some((0, Int.MaxValue)),
+      str => Some(str.toInt),
+    ).withPostSetHook(_ => enableVexplainImplicitsImplicitly())
+
+  def implicitsSettingEnable: Boolean =
+    VexplainImplicits.contains(VimplicitsChoices.enable) &&
+    !VexplainImplicits.contains(VimplicitsChoices.disable)
+  def implicitsSettingNoColor: Boolean = VexplainImplicits.contains(VimplicitsChoices.noColor)
+  def implicitsSettingVerboseTree: Boolean = VexplainImplicits.contains(VimplicitsChoices.verboseTree)
 }
