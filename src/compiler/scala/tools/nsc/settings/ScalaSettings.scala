@@ -587,7 +587,7 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     MultiChoiceSetting(
       name = "-Vimplicits",
       helpArg = "feature",
-      descr = "print dependent missing implicits and colored found/required type diffs. See https://docs.scala-lang.org/overviews/compiler-options/errors.html",
+      descr = "Print dependent missing implicits and colored found/required type diffs. See https://docs.scala-lang.org/overviews/compiler-options/errors.html",
       domain = VimplicitsChoices,
       default = Some("enable" :: Nil),
     ).withPostSetHook(_ => enableVexplainImplicitsImplicitly())
@@ -610,4 +610,10 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     !VexplainImplicits.contains(VimplicitsChoices.disable)
   def implicitsSettingNoColor: Boolean = VexplainImplicits.contains(VimplicitsChoices.noColor)
   def implicitsSettingVerboseTree: Boolean = VexplainImplicits.contains(VimplicitsChoices.verboseTree)
+
+  val VtypeDiffs: BooleanSetting =
+    BooleanSetting("-Vtype-diffs", "Print found/required error messages as colored diffs.")
+
+  def typeDiffsSettingEnable: Boolean =
+    VtypeDiffs.value
 }

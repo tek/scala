@@ -404,7 +404,6 @@ extends SplainFormatters
     formatDiffCache(key, formatDiffImpl(left, right, top))
   }
 
-  // TODO split non conf bounds
   def formatNonConfBounds(err: ImplicitErrorSpecifics.NonconformantBounds): List[String] = {
     val params = bracket(err.tparams.map(_.defString))
     val tpes = bracket(err.targs map showType)

@@ -37,7 +37,7 @@ extends SplainFormatting
     }
 
   def splainFoundReqMsg(found: Type, req: Type): Option[String] =
-    if (settings.implicitsSettingEnable)
+    if (settings.typeDiffsSettingEnable)
       foundReqMsgShort(found, req).map(a => ";\n" + a.indent.joinLines)
     else
       None
