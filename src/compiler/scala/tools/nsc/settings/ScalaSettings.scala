@@ -582,7 +582,7 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     val verboseTree = Choice("verbose-tree", "display all intermediate implicits in a chain")
   }
 
-  val VexplainImplicits: MultiChoiceSetting[VimplicitsChoices.type] =
+  val Vimplicits: MultiChoiceSetting[VimplicitsChoices.type] =
     MultiChoiceSetting(
       name = "-Vimplicits",
       helpArg = "feature",
@@ -592,8 +592,8 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     ).withPostSetHook(_ => enableVexplainImplicitsImplicitly())
 
   def enableVexplainImplicitsImplicitly(): Unit =
-    if (!VexplainImplicits.contains(VimplicitsChoices.disable) && !VexplainImplicits.contains(VimplicitsChoices.enable))
-      VexplainImplicits.enable(VimplicitsChoices.enable)
+    if (!Vimplicits.contains(VimplicitsChoices.disable) && !Vimplicits.contains(VimplicitsChoices.enable))
+      Vimplicits.enable(VimplicitsChoices.enable)
 
   val VimplicitsTruncRefined: IntSetting =
     IntSetting(
@@ -605,10 +605,10 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     ).withPostSetHook(_ => enableVexplainImplicitsImplicitly())
 
   def implicitsSettingEnable: Boolean =
-    VexplainImplicits.contains(VimplicitsChoices.enable) &&
-    !VexplainImplicits.contains(VimplicitsChoices.disable)
-  def implicitsSettingNoColor: Boolean = VexplainImplicits.contains(VimplicitsChoices.noColor)
-  def implicitsSettingVerboseTree: Boolean = VexplainImplicits.contains(VimplicitsChoices.verboseTree)
+    Vimplicits.contains(VimplicitsChoices.enable) &&
+    !Vimplicits.contains(VimplicitsChoices.disable)
+  def implicitsSettingNoColor: Boolean = Vimplicits.contains(VimplicitsChoices.noColor)
+  def implicitsSettingVerboseTree: Boolean = Vimplicits.contains(VimplicitsChoices.verboseTree)
 
   val VtypeDiffs: BooleanSetting =
     BooleanSetting("-Vtype-diffs", "Print found/required error messages as colored diffs.")
