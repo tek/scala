@@ -597,7 +597,7 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
 
   val VimplicitsTruncRefined: IntSetting =
     IntSetting(
-      "-Yimplicits-max-refined",
+      "-Vimplicits-max-refined",
       "max chars for printing refined types, abbreviate to `F {...}`",
       0,
       Some((0, Int.MaxValue)),

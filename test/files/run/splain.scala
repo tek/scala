@@ -67,6 +67,34 @@ object InfixBreak
 }
   """
 
+  def deeplyNestedHole: String = """
+object DeepHole
+{
+  trait C1[F[_]]
+  trait C2[F[_], G[_], A]
+  trait C3[A, B]
+  trait C4[A]
+  type Id[A] = A
+  type T1[X] = C3[List[String], X]
+  type T2[Y] = C2[Id, C4, Y]
+  type T3[Z] = C2[T1, T2, Z]
+  implicitly[C1[T3]]
+}
+  """
+
+  def test1: String = """
+object Aux
+{
+  trait C
+  trait D
+  trait F
+  object F { type Aux[A, B] = F { type X = A; type Y = B } }
+  implicit def f[A, B](implicit impPar10: C): F { type X = A; type Y = B } =
+    ???
+  implicitly[F.Aux[C, D]]
+}
+  """
+
   def show(): Unit = {
     val global = newCompiler()
 
@@ -78,5 +106,7 @@ object InfixBreak
     run(bounds)
     run(longAnnotationMessage)
     run(longInfix)
+    run(deeplyNestedHole)
+    run(test1)
   }
 }
