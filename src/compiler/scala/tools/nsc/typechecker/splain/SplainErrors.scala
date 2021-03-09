@@ -39,8 +39,10 @@ trait SplainErrors { self: Analyzer with SplainFormatting =>
     tparams: List[Symbol],
     originalError: Option[AbsTypeError],
   ): Unit = {
-    val err = ImplicitError.nonconformantBounds(tpe, candidate, ImplicitErrors.nesting)(targs, tparams, originalError)
-    ImplicitErrors.push(err)
+    if (settings.implicitsSettingEnable) {
+      val err = ImplicitError.nonconformantBounds(tpe, candidate, ImplicitErrors.nesting)(targs, tparams, originalError)
+      ImplicitErrors.push(err)
+    }
   }
 
   def splainPushImplicitSearchFailure(implicitTree: Tree, expectedType: Type, originalError: AbsTypeError): Unit = {
@@ -52,9 +54,11 @@ trait SplainErrors { self: Analyzer with SplainFormatting =>
         case _ => ()
       }
     }
-    (implicitTree: @unchecked) match {
-      case TypeApply(fun, args) => pushImpFailure(fun, args)
-      case Apply(TypeApply(fun, args), _) => pushImpFailure(fun, args)
+    if (settings.implicitsSettingEnable) {
+      (implicitTree: @unchecked) match {
+        case TypeApply(fun, args) => pushImpFailure(fun, args)
+        case Apply(TypeApply(fun, args), _) => pushImpFailure(fun, args)
+      }
     }
   }
 }

@@ -46,13 +46,17 @@ trait SplainData { self: Analyzer =>
     def removeErrorsFor(tpe: Type): Unit = errors = errors.dropWhile(_.tpe == tpe)
 
     def startSearch(expectedType: Type): Unit = {
-      if (!nested) errors = List()
-      stack = expectedType :: stack
+      if (settings.implicitsSettingEnable) {
+        if (!nested) errors = List()
+        stack = expectedType :: stack
+      }
     }
 
     def finishSearch(success: Boolean, expectedType: Type): Unit = {
-      if (success) removeErrorsFor(expectedType)
-      stack = stack.drop(1)
+      if (settings.implicitsSettingEnable) {
+        if (success) removeErrorsFor(expectedType)
+        stack = stack.drop(1)
+      }
     }
   }
 
