@@ -587,7 +587,7 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     MultiChoiceSetting(
       name = "-Vexplain-implicits",
       helpArg = "feature",
-      descr = "print dependent missing implicits",
+      descr = "print dependent missing implicits and colored found/required type diffs. See https://docs.scala-lang.org/overviews/compiler-options/errors.html",
       domain = VimplicitsChoices,
       default = Some("enable" :: Nil),
     ).withPostSetHook(_ => enableVexplainImplicitsImplicitly())
