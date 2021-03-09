@@ -3,7 +3,7 @@ import scala.tools.partest._
 object Test
 extends DirectTest
 {
-  override def extraSettings: String = "-usejavacp -Vexplain-implicits no-color"
+  override def extraSettings: String = "-usejavacp -Vimplicits no-color"
 
   def code: String = ""
 

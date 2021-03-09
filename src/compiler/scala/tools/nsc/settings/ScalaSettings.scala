@@ -585,7 +585,7 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
 
   val VexplainImplicits: MultiChoiceSetting[VimplicitsChoices.type] =
     MultiChoiceSetting(
-      name = "-Vexplain-implicits",
+      name = "-Vimplicits",
       helpArg = "feature",
       descr = "print dependent missing implicits and colored found/required type diffs. See https://docs.scala-lang.org/overviews/compiler-options/errors.html",
       domain = VimplicitsChoices,
@@ -598,7 +598,7 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
 
   val VimplicitsTruncRefined: IntSetting =
     IntSetting(
-      "-Yexplain-implicits-max-refined",
+      "-Yimplicits-max-refined",
       "max chars for printing refined types, abbreviate to `F {...}`",
       0,
       Some((0, Int.MaxValue)),
