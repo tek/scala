@@ -507,7 +507,7 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     .withAbbreviation("-Yhot-statistics")
   val Yshowsyms       = BooleanSetting("-Vsymbols", "Print the AST symbol hierarchy after each phase.") withAbbreviation "-Yshow-syms"
   val Ytyperdebug        = BooleanSetting("-Vtyper", "Trace type assignments.") withAbbreviation "-Ytyper-debug"
-  val XlogImplicits      = BooleanSetting("-Vimplicits", "Show more detail on why some implicits are not applicable.")
+  val XlogImplicits      = BooleanSetting("-Xlog-implicits", "Show more detail on why some implicits are not applicable.")
   val logImplicitConv    = BooleanSetting("-Vimplicit-conversions", "Print a message whenever an implicit conversion is inserted.")
     .withAbbreviation("-Xlog-implicit-conversions")
   val logReflectiveCalls = BooleanSetting("-Vreflective-calls", "Print a message when a reflective method call is generated")
