@@ -82,7 +82,7 @@ object DeepHole
 }
   """
 
-  def test1: String = """
+  def auxType: String = """
 object Aux
 {
   trait C
@@ -92,6 +92,102 @@ object Aux
   implicit def f[A, B](implicit impPar10: C): F { type X = A; type Y = B } =
     ???
   implicitly[F.Aux[C, D]]
+}
+  """
+
+  def refined: String = """
+object Refined
+{
+  trait A
+  trait B
+  trait C
+  trait D
+  trait E
+  trait F
+  def f(a: A with B with C { type Y = String; type X = String; type Z = String }): Unit = ???
+  val x: B with E with A with F { type X = Int; type Y = String } = ???
+  f(x)
+}
+  """
+
+  def disambiguateQualified: String = """
+object A
+{
+  object B
+  {
+    object X
+    {
+      object Y
+      {
+        type T
+      }
+    }
+  }
+  object C
+  {
+    object X
+    {
+      object Y
+      {
+        type T
+      }
+    }
+  }
+  def f(a: B.X.Y.T): Unit = ()
+  val x: C.X.Y.T = ???
+  f(x: C.X.Y.T)
+}
+  """
+
+  def bynameParam: String = """
+object Foo
+{
+  type A
+  type B
+  def f(g: (=> A) => B): Unit = ()
+  f(1: Int)
+}
+  """
+
+  def tuple1: String = """
+object Tup1
+{
+  val a: Tuple1[String] = "Tuple1": String
+}
+  """
+
+  def singleType: String = """
+object SingleImp
+{
+  class ***[A, B]
+  val a = 1
+  val b = 2
+
+  implicitly[a.type *** b.type]
+}
+  """
+
+  def singleTypeInFunction: String = """
+object SingleImp
+{
+  class ***[A, B]
+  def fn(): Unit = {
+    val a = 1
+    val b = 2
+
+    implicitly[a.type *** b.type]
+  }
+}
+  """
+
+  def singleTypeWithFreeSymbol: String = """
+object SingleImp
+{
+  class ***[A, B]
+  def fn[A, B](a: A, b: B) = {
+
+    implicitly[a.type *** b.type]
+  }
 }
   """
 
@@ -107,6 +203,13 @@ object Aux
     run(longAnnotationMessage)
     run(longInfix)
     run(deeplyNestedHole)
-    run(test1)
+    run(auxType)
+    run(refined)
+    run(disambiguateQualified)
+    run(bynameParam)
+    run(tuple1)
+    run(singleType)
+    run(singleTypeInFunction)
+    run(singleTypeWithFreeSymbol)
   }
 }

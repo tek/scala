@@ -70,3 +70,31 @@ Aux.f invalid because
 !I impPar10: C
   implicitly[F.Aux[C, D]]
             ^
+newSource1.scala:11: error: type mismatch;
+  A with B with E|C with F|<none> {type X = Int|String; type Y = String; type Z = <none>|String}
+  f(x)
+    ^
+newSource1.scala:25: error: type mismatch;
+  C.X.Y.T|B.X.Y.T
+  f(x: C.X.Y.T)
+     ^
+newSource1.scala:6: error: type mismatch;
+  Int|(=> A) => B
+  f(1: Int)
+     ^
+newSource1.scala:3: error: type mismatch;
+  String|Tuple1[String]
+  val a: Tuple1[String] = "Tuple1": String
+                                  ^
+newSource1.scala:7: error: implicit error;
+!I e: a.type *** b.type
+  implicitly[a.type *** b.type]
+            ^
+newSource1.scala:8: error: implicit error;
+!I e: a.type *** b.type
+    implicitly[a.type *** b.type]
+              ^
+newSource1.scala:6: error: implicit error;
+!I e: a.type *** b.type
+    implicitly[a.type *** b.type]
+              ^

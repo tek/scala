@@ -19,6 +19,48 @@ sealed trait Formatted
   def length: Int
 }
 
+object Formatted {
+  def comparator: Formatted => String = {
+    case Infix(left, _, _, _) =>
+      comparator(left)
+    case Simple(tpe) =>
+      tpe
+    case Qualified(Nil, tpe) =>
+      tpe
+    case Qualified(path, tpe) =>
+      s"${path.mkString}$tpe"
+    case UnitForm =>
+      "()"
+    case Applied(cons, _) =>
+      comparator(cons)
+    case TupleForm(Nil) =>
+      "()"
+    case TupleForm(h :: _) =>
+      comparator(h)
+    case FunctionForm(Nil, ret, _) =>
+      comparator(ret)
+    case FunctionForm(h :: _, _, _) =>
+      comparator(h)
+    case RefinedForm(Nil, _) =>
+      "()"
+    case RefinedForm(h :: _, _) =>
+      comparator(h)
+    case Diff(l, _) =>
+      comparator(l)
+    case Decl(sym, _) =>
+      comparator(sym)
+    case DeclDiff(sym, _, _) =>
+      comparator(sym)
+    case ByName(tpe) =>
+      comparator(tpe)
+  }
+
+  implicit def Ordering_Formatted: Ordering[Formatted] =
+    new Ordering[Formatted] {
+      def compare(x: Formatted, y: Formatted): Int = Ordering[String].compare(comparator(x), comparator(y))
+    }
+}
+
 case class Infix(infix: Formatted, left: Formatted, right: Formatted,
   top: Boolean)
 extends Formatted
@@ -30,6 +72,12 @@ case class Simple(tpe: String)
 extends Formatted
 {
   def length = tpe.length
+}
+
+case class Qualified(path: List[String], tpe: String)
+extends Formatted
+{
+  def length: Int = path.map(_.length).sum + path.length + tpe.length
 }
 
 case object UnitForm
@@ -64,13 +112,37 @@ object FunctionForm
   }
 }
 
+case class RefinedForm(elems: List[Formatted], decls: List[Formatted])
+extends Formatted
+{
+  def length: Int = elems.map(_.length).sum + (elems.length - 1) * 6
+}
+
 case class Diff(left: Formatted, right: Formatted)
 extends Formatted
 {
   def length = left.length + right.length + 1
 }
 
-trait TypeRepr
+case class Decl(sym: Formatted, rhs: Formatted)
+extends Formatted
+{
+  def length: Int = sym.length + rhs.length + 8
+}
+
+case class DeclDiff(sym: Formatted, left: Formatted, right: Formatted)
+extends Formatted
+{
+  def length: Int = sym.length + left.length + right.length + 9
+}
+
+case class ByName(tpe: Formatted)
+extends Formatted
+{
+  def length: Int = tpe.length + 5
+}
+
+sealed trait TypeRepr
 {
   def broken: Boolean
   def flat: String

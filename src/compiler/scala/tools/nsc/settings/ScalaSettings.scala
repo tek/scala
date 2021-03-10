@@ -594,7 +594,7 @@ trait ScalaSettings extends StandardScalaSettings with Warnings { _: MutableSett
     if (!Vimplicits.contains(VimplicitsChoices.disable) && !Vimplicits.contains(VimplicitsChoices.enable))
       Vimplicits.enable(VimplicitsChoices.enable)
 
-  val VimplicitsTruncRefined: IntSetting =
+  val VimplicitsMaxRefined: IntSetting =
     IntSetting(
       "-Vimplicits-max-refined",
       "max chars for printing refined types, abbreviate to `F {...}`",

@@ -47,7 +47,17 @@ trait SplainFormatters
 
   def formatType(tpe: Type, top: Boolean): Formatted
 
-  def formatInfix[A](simple: String, left: A, right: A, top: Boolean, rec: A => Boolean => Formatted): Formatted
+  object Refined {
+    def unapply(tpe: Type): Option[(List[Type], Scope)] =
+      tpe match {
+        case RefinedType(parents, decls) =>
+          Some((parents, decls))
+        case t @ SingleType(_, _) =>
+          unapply(t.underlying)
+        case _ =>
+          None
+      }
+  }
 
   trait SpecialFormatter
   {
@@ -85,6 +95,122 @@ trait SplainFormatters
 
     def diff(left: Type, right: Type, top: Boolean) = None
   }
+
+  object RefinedFormatter extends SpecialFormatter {
+    object DeclSymbol {
+      def unapply(sym: Symbol): Option[(Formatted, Formatted)] =
+        if (sym.hasRawInfo)
+          Some((Simple(sym.simpleName.toString), formatType(sym.rawInfo, true)))
+        else
+          None
+    }
+
+    def ignoredTypes: List[Type] = List(typeOf[Object], typeOf[Any], typeOf[AnyRef])
+
+    def sanitizeParents: List[Type] => List[Type] = {
+      case List(tpe) =>
+        List(tpe)
+      case tpes =>
+        tpes.filterNot(t => ignoredTypes.exists(_ =:= t))
+    }
+
+    def formatDecl: Symbol => Formatted = {
+      case DeclSymbol(n, t) =>
+        Decl(n, t)
+      case sym =>
+        Simple(sym.toString)
+    }
+
+    def apply[A](
+      tpe: Type,
+      simple: String,
+      args: List[A],
+      formattedArgs: => List[Formatted],
+      top: Boolean,
+      rec: A => Boolean => Formatted,
+    ): Option[Formatted] =
+      tpe match {
+        case Refined(parents, decls) =>
+          Some(RefinedForm(sanitizeParents(parents).map(formatType(_, top)), decls.toList.map(formatDecl)))
+        case _ =>
+          None
+      }
+
+    val none: Formatted = Simple("<none>")
+
+    def separate[A](left: List[A], right: List[A]): (List[A], List[A], List[A]) = {
+      val leftS = Set(left: _*)
+      val rightS = Set(right: _*)
+      val common = leftS.intersect(rightS)
+      val uniqueLeft = leftS -- common
+      val uniqueRight = rightS -- common
+      (common.toList, uniqueLeft.toList, uniqueRight.toList)
+    }
+
+    def matchTypes(left: List[Type], right: List[Type]): List[Formatted] = {
+      val (common, uniqueLeft, uniqueRight) = separate(left.map(formatType(_, true)), right.map(formatType(_, true)))
+      val diffs = uniqueLeft
+        .toList
+        .zipAll(uniqueRight.toList, none, none)
+        .map { case (l, r) =>
+          Diff(l, r)
+        }
+      common.toList ++ diffs
+    }
+
+    def filterDecls(syms: List[Symbol]): List[(Formatted, Formatted)] =
+      syms.collect { case DeclSymbol(sym, rhs) =>
+        (sym, rhs)
+      }
+
+    def matchDecls(left: List[Symbol], right: List[Symbol]): List[Formatted] = {
+      val (common, uniqueLeft, uniqueRight) = separate(filterDecls(left), filterDecls(right))
+      val diffs = uniqueLeft
+        .toList
+        .map(Some(_))
+        .zipAll(uniqueRight.toList.map(Some(_)), None, None)
+        .collect {
+          case (Some((sym, l)), Some((_, r))) =>
+            DeclDiff(sym, l, r)
+          case (None, Some((sym, r))) =>
+            DeclDiff(sym, none, r)
+          case (Some((sym, l)), None) =>
+            DeclDiff(sym, l, none)
+        }
+      common.toList.map { case (sym, rhs) =>
+        Decl(sym, rhs)
+      } ++ diffs
+    }
+
+    def diff(left: Type, right: Type, top: Boolean): Option[Formatted] =
+      (left, right) match {
+        case (Refined(leftParents, leftDecls), Refined(rightParents, rightDecls)) =>
+          val parents = matchTypes(sanitizeParents(leftParents), sanitizeParents(rightParents)).sorted
+          val decls = matchDecls(leftDecls.toList, rightDecls.toList).sorted
+          Some(RefinedForm(parents, decls))
+        case _ =>
+          None
+      }
+  }
+
+  object ByNameFormatter extends SpecialFormatter {
+    def apply[A](
+      tpe: Type,
+      simple: String,
+      args: List[A],
+      formattedArgs: => List[Formatted],
+      top: Boolean,
+      rec: A => Boolean => Formatted,
+    ): Option[Formatted] =
+      tpe match {
+        case TypeRef(_, sym, List(a)) if sym.name.decodedName.toString == "<byname>" =>
+          Some(ByName(formatType(a, true)))
+        case _ =>
+          None
+      }
+
+    def diff(left: Type, right: Type, top: Boolean): Option[Formatted] = None
+  }
 }
 
 trait SplainFormatting
@@ -95,7 +221,7 @@ extends SplainFormatters
   def breakInfixLength: Int = 70
 
   def splainSettingTruncRefined: Option[Int] = {
-    val value = settings.VimplicitsTruncRefined.value
+    val value = settings.VimplicitsMaxRefined.value
     if (value == 0) None else Some(value)
   }
 
@@ -154,26 +280,115 @@ extends SplainFormatters
     else sym.toString
   }
 
-  def formatAuxSimple(tpe: Type) =
-    ctorNames(tpe).takeRight(2).mkString(".")
-
-  def formatNormalSimple(tpe: Type) = tpe match {
-    case RefinedType(parents, decls) =>
-      val simple = parents.map(showType).mkString(" with ")
-      val refine = decls.map(formatRefinement).mkString("; ")
-      val refine1 = splainSettingTruncRefined.collect { case len if refine.length > len => "..." }.getOrElse(refine)
-      s"$simple {$refine1}"
-    case a @ WildcardType => a.toString
-    case a =>
-      val sym = if (a.takesTypeArgs) a.typeSymbolDirect else a.typeSymbol
-      val name = sym.name.decodedName.toString
-      if (sym.isModuleClass) s"$name.type"
-      else name
+  def formatAuxSimple(tpe: Type): (List[String], String) = {
+    val names = ctorNames(tpe)
+    (names.dropRight(2), ctorNames(tpe).takeRight(2).mkString("."))
   }
 
-  def formatSimpleType(tpe: Type): String =
-    if (isAux(tpe)) formatAuxSimple(tpe)
-    else formatNormalSimple(tpe)
+  def symbolPath(sym: Symbol): List[String] =
+    sym
+      .ownerChain
+      .takeWhile(sym => sym.isType && !sym.isPackageClass)
+      .map(_.name.decodedName.toString)
+      .reverse
+
+  def sanitizePath(path: List[String]): List[String] =
+    path
+      .takeWhile(_ != "type")
+      .filterNot(_.contains("$"))
+
+  def pathPrefix: List[String] => String = {
+    case Nil =>
+      ""
+    case List("<noprefix>") =>
+      ""
+    case a =>
+      a.mkString("", ".", ".")
+  }
+
+  def qualifiedName(path: List[String], name: String): String = s"${pathPrefix(path)}$name"
+
+  def stripModules(path: List[String], name: String): Option[Int] => String = {
+    case Some(keep) =>
+      qualifiedName(path.takeRight(keep), name)
+    case None =>
+      name
+  }
+
+  case class TypeParts(sym: Symbol, tt: Type) {
+
+    def modulePath: List[String] =
+      (tt, sym) match {
+        case (TypeRef(pre, _, _), _) if !pre.toString.isEmpty =>
+          sanitizePath(pre.toString.split("\\.").toList)
+        case (SingleType(_, _), sym) =>
+          symbolPath(sym).dropRight(1)
+        case (_, _) =>
+          Nil
+      }
+
+    def ownerPath: List[String] = {
+      val chain = sym.ownerChain.reverse
+      val parts = chain.map(_.name.decodedName.toString)
+      val (paths, names) = parts.splitAt(
+        Math.max(0, parts.size - 1),
+      )
+      paths
+    }
+
+    def shortName: String = {
+      val prefixes = tt.prefixString.split('.').dropRight(1)
+      val prefix = prefixes.mkString(".") + "."
+      val name = tt.safeToString
+      name.stripPrefix(prefix)
+    }
+  }
+
+  def stripType(tpe: Type): (List[String], String) =
+    tpe match {
+      case tt: SingletonType =>
+        val sym = tt.termSymbol
+        val parts = TypeParts(sym, tt)
+
+        parts.modulePath -> parts.shortName
+
+      case tt: RefinedType =>
+        val sym = tt.typeSymbol
+        val parts = TypeParts(sym, tt)
+
+        parts.modulePath -> parts.shortName
+
+      case _ =>
+        // TODO: should this also use TypeParts ?
+        val sym =
+          if (tpe.takesTypeArgs)
+            tpe.typeSymbolDirect
+          else
+            tpe.typeSymbol
+        val symName = sym.name.decodedName.toString
+        val parts = TypeParts(sym, tpe)
+
+        val name =
+          if (sym.isModuleClass)
+            s"$symName.type"
+          else
+            symName
+        (parts.modulePath, name)
+    }
+
+  def formatNormalSimple(tpe: Type): (List[String], String) =
+    tpe match {
+      case a @ WildcardType =>
+        (Nil, a.toString)
+      case a =>
+        stripType(a)
+    }
+
+  def formatSimpleType(tpe: Type): (List[String], String) =
+    if (isAux(tpe))
+      formatAuxSimple(tpe)
+    else
+      formatNormalSimple(tpe)
 
   def indentLine(line: String, n: Int = 1, prefix: String = "  ") = (prefix * n) + line
 
@@ -200,13 +415,28 @@ extends SplainFormatters
 
   def showTuple(args: List[String]) =
     args match {
-      case head :: Nil => head
-      case _ => args.mkString("(", ",", ")")
+      case head :: Nil =>
+        s"Tuple1[$head]"
+      case _ =>
+        args.mkString("(", ",", ")")
     }
 
-  def showSLRecordItem(key: Formatted, value: Formatted) = {
-    FlatType(
-      s"(${showFormattedNoBreak(key)} ->> ${showFormattedNoBreak(value)})")
+  def showFuncParams(args: List[String]) =
+    args match {
+      case head :: Nil =>
+        head
+      case _ =>
+        args.mkString("(", ",", ")")
+    }
+
+  def showRefined(parents: List[String], decls: List[String]) = {
+    val p = parents.mkString(" with ")
+    val d =
+      if (decls.isEmpty)
+        ""
+      else
+        decls.mkString(" {", "; ", "}")
+    s"$p$d"
   }
 
   def bracket[A](params: List[A]) = params.mkString("[", ", ", "]")
@@ -261,29 +491,72 @@ extends SplainFormatters
 
   val showFormattedLCache = FormatCache[(Formatted, Boolean), TypeRepr]
 
+  def truncateDecls(decls: List[Formatted]): Boolean = splainSettingTruncRefined.exists(_ < decls.map(_.length).sum)
+
+  def showFormattedQualified(path: List[String], name: String): TypeRepr =
+    FlatType(name)
+
+  def formattedDiff: (Formatted, Formatted) => String = {
+    case (Qualified(lpath, lname), Qualified(rpath, rname)) if lname == rname =>
+      val prefix =
+        lpath
+          .reverse
+          .zip(rpath.reverse)
+          .takeWhile { case (l, r) =>
+            l == r
+          }
+          .size + 1
+      s"${qualifiedName(lpath.takeRight(prefix), lname).red}|${qualifiedName(rpath.takeRight(prefix), rname).green}"
+    case (left, right) =>
+      val l = showFormattedNoBreak(left)
+      val r = showFormattedNoBreak(right)
+      s"${l.red}|${r.green}"
+  }
+
   def showFormattedLImpl(tpe: Formatted, break: Boolean): TypeRepr =
     tpe match {
-      case Simple(a) => FlatType(a)
+      case Simple(name) =>
+        FlatType(name)
+      case Qualified(Nil, name) =>
+        FlatType(name)
+      case Qualified(path, name) =>
+        showFormattedQualified(path, name)
       case Applied(cons, args) =>
-        val reprs = args map (showFormattedL(_, break))
+        val reprs = args.map(showFormattedL(_, break))
         showTypeApply(showFormattedNoBreak(cons), reprs, break)
-      case tpe @ Infix(infix, left, right, top) =>
+      case tpe @ Infix(_, _, _, top) =>
         val flat = flattenInfix(tpe)
         val broken: TypeRepr =
-          if (break) breakInfix(flat)
-          else FlatType(flat map showFormattedNoBreak mkString " ")
+          if (break)
+            breakInfix(flat)
+          else
+            FlatType(flat.map(showFormattedNoBreak).mkString(" "))
         wrapParensRepr(broken, top)
-      case UnitForm => FlatType("Unit")
+      case UnitForm =>
+        FlatType("Unit")
       case FunctionForm(args, ret, top) =>
-        val a = showTuple(args map showFormattedNoBreak)
+        val a = showFuncParams(args.map(showFormattedNoBreak))
         val r = showFormattedNoBreak(ret)
         FlatType(wrapParens(s"$a => $r", top))
       case TupleForm(elems) =>
-        FlatType(showTuple(elems map showFormattedNoBreak))
+        FlatType(showTuple(elems.map(showFormattedNoBreak)))
+      case RefinedForm(elems, decls) if truncateDecls(decls) =>
+        FlatType(showRefined(elems.map(showFormattedNoBreak), List("...")))
+      case RefinedForm(elems, decls) =>
+        FlatType(showRefined(elems.map(showFormattedNoBreak), decls.map(showFormattedNoBreak)))
       case Diff(left, right) =>
-        val l = showFormattedNoBreak(left)
-        val r = showFormattedNoBreak(right)
-        FlatType(s"${l.red}|${r.green}")
+        FlatType(formattedDiff(left, right))
+      case Decl(sym, rhs) =>
+        val s = showFormattedNoBreak(sym)
+        val r = showFormattedNoBreak(rhs)
+        FlatType(s"type $s = $r")
+      case DeclDiff(sym, left, right) =>
+        val s = showFormattedNoBreak(sym)
+        val diff = formattedDiff(left, right)
+        FlatType(s"type $s = $diff")
+      case ByName(tpe) =>
+        val t = showFormattedNoBreak(tpe)
+        FlatType(s"(=> $t)")
     }
 
   def showFormattedL(tpe: Formatted, break: Boolean): TypeRepr = {
@@ -291,15 +564,13 @@ extends SplainFormatters
     showFormattedLCache(key, showFormattedLImpl(tpe, break))
   }
 
-  def showFormattedLBreak(tpe: Formatted) = showFormattedL(tpe, true)
+  def showFormattedLBreak(tpe: Formatted): TypeRepr = showFormattedL(tpe, true)
 
-  def showFormattedLNoBreak(tpe: Formatted) = showFormattedL(tpe, false)
+  def showFormattedLNoBreak(tpe: Formatted): TypeRepr = showFormattedL(tpe, false)
 
-  def showFormatted(tpe: Formatted, break: Boolean): String =
-    showFormattedL(tpe, break).joinLines
+  def showFormatted(tpe: Formatted, break: Boolean): String = showFormattedL(tpe, break).joinLines
 
-  def showFormattedNoBreak(tpe: Formatted) =
-    showFormattedLNoBreak(tpe).tokenize
+  def showFormattedNoBreak(tpe: Formatted): String = showFormattedLNoBreak(tpe).tokenize
 
   def showType(tpe: Type): String = showFormatted(formatType(tpe, true), false)
 
@@ -307,21 +578,29 @@ extends SplainFormatters
 
   def showTypeBreakL(tpe: Type): List[String] = showFormattedL(formatType(tpe, true), true).lines
 
-  def wrapParens(expr: String, top: Boolean) =
-    if (top) expr else s"($expr)"
+  def wrapParens(expr: String, top: Boolean): String =
+    if (top)
+      expr
+    else
+      s"($expr)"
 
-  def wrapParensRepr(tpe: TypeRepr, top: Boolean): TypeRepr = {
-    (tpe: @unchecked) match {
-      case FlatType(tpe) => FlatType(wrapParens(tpe, top))
+  def wrapParensRepr(tpe: TypeRepr, top: Boolean): TypeRepr =
+    tpe match {
+      case FlatType(tpe) =>
+        FlatType(wrapParens(tpe, top))
       case BrokenType(lines) =>
-        if (top) tpe else BrokenType("(" :: indent(lines) ::: List(")"))
+        if (top)
+          tpe
+        else
+          BrokenType("(" :: indent(lines) ::: List(")"))
     }
-  }
 
   val specialFormatters: List[SpecialFormatter] =
     List(
       FunctionFormatter,
       TupleFormatter,
+      RefinedFormatter,
+      ByNameFormatter,
     )
 
   def formatSpecial[A](tpe: Type, simple: String, args: List[A], formattedArgs: => List[Formatted], top: Boolean,
@@ -333,25 +612,32 @@ extends SplainFormatters
       .headOption
   }
 
-  def formatInfix[A](simple: String, left: A, right: A, top: Boolean, rec: A => Boolean => Formatted) = {
-      val l = rec(left)(false)
-      val r = rec(right)(false)
-      Infix(Simple(simple), l, r, top)
+  def formatInfix[A](
+    path: List[String],
+    simple: String,
+    left: A,
+    right: A,
+    top: Boolean,
+    rec: A => Boolean => Formatted,
+  ) = {
+    val l = rec(left)(false)
+    val r = rec(right)(false)
+    Infix(Qualified(path, simple), l, r, top)
   }
 
   def formatWithInfix[A](tpe: Type, args: List[A], top: Boolean, rec: A => Boolean => Formatted): Formatted = {
-      val simple = formatSimpleType(tpe)
-      lazy val formattedArgs = args.map(rec(_)(true))
-      formatSpecial(tpe, simple, args, formattedArgs, top, rec) getOrElse {
-        args match {
-          case left :: right :: Nil if isSymbolic(tpe) =>
-            formatInfix(simple, left, right, top, rec)
-          case _ :: _ =>
-            Applied(Simple(simple), formattedArgs)
-          case _ =>
-            Simple(simple)
-        }
+    val (path, simple) = formatSimpleType(tpe)
+    lazy val formattedArgs = args.map(rec(_)(true))
+    formatSpecial(tpe, simple, args, formattedArgs, top, rec).getOrElse {
+      args match {
+        case left :: right :: Nil if isSymbolic(tpe) =>
+          formatInfix(path, simple, left, right, top, rec)
+        case _ :: _ =>
+          Applied(Qualified(path, simple), formattedArgs)
+        case _ =>
+          Qualified(path, simple)
       }
+    }
   }
 
   def formatTypeImpl(tpe: Type, top: Boolean): Formatted = {
@@ -367,20 +653,20 @@ extends SplainFormatters
     formatTypeCache(key, formatTypeImpl(tpe, top))
   }
 
-  def formatDiffInfix(left: Type, right: Type, top: Boolean) = {
+  def formatDiffInfix(left: Type, right: Type, top: Boolean): Formatted = {
     val rec = (l: Type, r: Type) => (t: Boolean) => formatDiff(l, r, t)
     val recT = rec.tupled
     val args = extractArgs(left) zip extractArgs(right)
     formatWithInfix(left, args, top, recT)
   }
 
-  def formatDiffSpecial(left: Type, right: Type, top: Boolean) = {
+  def formatDiffSpecial(left: Type, right: Type, top: Boolean): Option[Formatted] = {
     specialFormatters.map(_.diff(left, right, top))
       .collectFirst { case Some(a) => a }
       .headOption
   }
 
-  def formatDiffSimple(left: Type, right: Type) = {
+  def formatDiffSimple(left: Type, right: Type): Formatted = {
     val l = formatType(left, true)
     val r = formatType(right, true)
     Diff(l, r)
@@ -399,7 +685,7 @@ extends SplainFormatters
 
   val formatDiffCache = FormatCache[(Type, Type, Boolean), Formatted]
 
-  def formatDiff(left: Type, right: Type, top: Boolean) = {
+  def formatDiff(left: Type, right: Type, top: Boolean): Formatted = {
     val key = (left, right, top)
     formatDiffCache(key, formatDiffImpl(left, right, top))
   }
