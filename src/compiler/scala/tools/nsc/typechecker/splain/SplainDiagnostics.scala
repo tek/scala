@@ -14,16 +14,13 @@ package scala.tools.nsc
 package typechecker
 package splain
 
-import scala.util.control.NonFatal
+trait SplainDiagnostics extends splain.SplainFormatting {
+  self: Analyzer =>
 
-trait SplainDiagnostics
-extends SplainFormatting
-{ self: Analyzer with SplainData =>
   import global._
 
-  def splainFoundReqMsg(found: Type, req: Type): Option[String] =
-    if (settings.typeDiffsSettingEnable)
-      Some(";\n" + showFormattedL(formatDiff(found, req, true), true).indent.joinLines)
-    else
-      None
+  def splainFoundReqMsg(found: Type, req: Type): String = {
+    if (settings.VtypeDiffs) ";\n" + showFormattedL(formatDiff(found, req, top = true), break = true).indent.joinLines
+    else ""
+  }
 }
