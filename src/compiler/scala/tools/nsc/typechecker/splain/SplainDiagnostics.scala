@@ -21,24 +21,9 @@ extends SplainFormatting
 { self: Analyzer with SplainData =>
   import global._
 
-  def showStats[A](desc: String, run: => A): A = {
-    val ret = run
-    if (sys.env.contains("SPLAIN_CACHE_STATS"))
-      reporter.echo(s"$desc entries/hits: $cacheStats")
-    ret
-  }
-
-  def foundReqMsgShort(found: Type, req: Type): Option[TypeRepr] =
-    try {
-      Some(showStats("foundreq", showFormattedL(formatDiff(found, req, true), true)))
-    } catch {
-      case NonFatal(e) =>
-        None
-    }
-
   def splainFoundReqMsg(found: Type, req: Type): Option[String] =
     if (settings.typeDiffsSettingEnable)
-      foundReqMsgShort(found, req).map(a => ";\n" + a.indent.joinLines)
+      Some(";\n" + showFormattedL(formatDiff(found, req, true), true).indent.joinLines)
     else
       None
 }
