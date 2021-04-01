@@ -153,7 +153,24 @@ extends splain.SplainErrors
   def MacroCantExpandIncompatibleMacrosError(internalMessage: String) =
     MacroIncompatibleEngineError("macro cannot be expanded, because it was compiled by an incompatible macro engine", internalMessage)
 
+  def NoImplicitFoundAnnotation(tree: Tree, param: Symbol): Option[(Boolean, String)] = {
+    param match {
+      case ImplicitNotFoundMsg(msg) => Some((false, msg.formatParameterMessage(tree)))
+      case _ =>
+        val paramTp = param.tpe
+        paramTp.typeSymbolDirect match {
+          case ImplicitNotFoundMsg(msg) => Some((false, msg.formatDefSiteMessage(paramTp)))
+          case _ =>
+            val supplement = param.baseClasses.collectFirst {
+              case ImplicitNotFoundMsg(msg) => s" (${msg.formatDefSiteMessage(paramTp)})"
+            }
+            supplement.map((true, _))
+        }
+    }
+  }
+
   def NoImplicitFoundError(tree: Tree, param: Symbol)(implicit context: Context): Unit = {
+    val annotationMsg: Option[(Boolean, String)] = NoImplicitFoundAnnotation(tree, param)
     def defaultErrMsg = {
       val paramName = param.name
       val paramTp = param.tpe
@@ -162,21 +179,14 @@ extends splain.SplainErrors
           "evidence parameter of type"
         else
           s"parameter $paramName:"
-
-      param match {
-        case ImplicitNotFoundMsg(msg) => msg.formatParameterMessage(tree)
-        case _ =>
-          paramTp.typeSymbolDirect match {
-            case ImplicitNotFoundMsg(msg) => msg.formatDefSiteMessage(paramTp)
-            case _ =>
-              val supplement = param.baseClasses.collectFirst {
-                case ImplicitNotFoundMsg(msg) => s" (${msg.formatDefSiteMessage(paramTp)})"
-              }.getOrElse("")
-              s"could not find implicit value for $evOrParam $paramTp$supplement"
-          }
+      annotationMsg match {
+        case Some((false, msg)) => msg
+        case msg =>
+          val supplement = msg.fold("")(_._2)
+          s"could not find implicit value for $evOrParam $paramTp$supplement"
       }
     }
-    val errMsg = splainPushOrReportNotFound(tree, param)
+    val errMsg = splainPushOrReportNotFound(tree, param, annotationMsg.map(_._2))
     issueNormalTypeError(tree, errMsg.getOrElse(defaultErrMsg))
   }
 

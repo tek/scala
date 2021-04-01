@@ -225,9 +225,6 @@ extends SplainFormatters
     if (value == 0) None else Some(value)
   }
 
-  def formatMsg(msg: Message, tpe: Type): String =
-    msg.formatDefSiteMessage(tpe)
-
   implicit def colors =
     if(settings.implicitsSettingNoColor) StringColors.noColor
     else StringColors.color
@@ -700,8 +697,10 @@ extends SplainFormatters
     val candidate = ImplicitError.cleanCandidate(err)
     val problem = s"${candidate.red} invalid because"
     val reason = err.specifics match {
-      case e: ImplicitErrorSpecifics.NotFound => implicitMessage(e.param)
-      case e: ImplicitErrorSpecifics.NonconformantBounds => formatNonConfBounds(e)
+      case e: ImplicitErrorSpecifics.NotFound =>
+        implicitMessage(e.param, NoImplicitFoundAnnotation(err.candidate, e.param).map(_._2))
+      case e: ImplicitErrorSpecifics.NonconformantBounds =>
+        formatNonConfBounds(e)
     }
     (problem, reason, err.nesting)
   }
@@ -781,10 +780,10 @@ extends SplainFormatters
     else tpe
   }
 
-  def implicitMessage(param: Symbol): List[String] = {
+  def implicitMessage(param: Symbol, annotationMsg: Option[String]): List[String] = {
     val tpe = param.tpe
-    val msg = tpe.typeSymbolDirect match {
-      case ImplicitNotFoundMsg(msg) => formatMsg(msg, tpe).split("\n").toList.map(_.blue) ++ List("")
+    val msg = annotationMsg match {
+      case Some(msg) => msg.split("\n").toList.map(_.blue) ++ List("")
       case _ => Nil
     }
     val effTpe = effectiveImplicitType(tpe)
@@ -809,12 +808,12 @@ extends SplainFormatters
     }
   }
 
-  def formatImplicitError(param: Symbol, errors: List[ImplicitError]) = {
+  def formatImplicitError(param: Symbol, errors: List[ImplicitError], annotationMsg: Option[String]) = {
     val stack = formatNestedImplicits(errors)
     val nl = if (errors.nonEmpty) "\n" else ""
     val ex = stack.mkString("\n")
     val pre = "implicit error;\n"
-    val msg = implicitMessage(param).mkString("\n")
+    val msg = implicitMessage(param, annotationMsg).mkString("\n")
     s"$pre$msg$nl$ex"
   }
 

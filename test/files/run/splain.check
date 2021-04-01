@@ -58,6 +58,8 @@ f invalid because
     VeryLongTypeName ::::
     VeryLongTypeName
   ]
+   (No implicit view available from Int => InfixBreak.T2.)
+
   implicitly[String]
             ^
 newSource1.scala:11: error: implicit error;
@@ -98,3 +100,16 @@ newSource1.scala:6: error: implicit error;
 !I e: a.type *** b.type
     implicitly[a.type *** b.type]
               ^
+newSource1.scala:5: error: implicit error;
+!I ev: Ordering[Object]
+  No implicit Ordering[Object] found to build a SortedSet[Object]. You may want to upcast to a Set[Int] first by calling `unsorted`.
+
+Ordering.ordered invalid because
+!I asComparable: Object => Comparable[_$2]
+  No implicit view available from Object => Comparable[_ >: Object].
+
+⋮
+Ordering.comparatorToOrdering invalid because
+!I cmp: Comparator[Object]
+    ms.map(_ => o)
+          ^

@@ -191,6 +191,15 @@ object SingleImp
 }
   """
 
+  def parameterAnnotation: String = """
+  import collection.{mutable => m, immutable => i}
+  object Test {
+    val o = new Object
+    val ms = m.SortedSet(1,2,3)
+    ms.map(_ => o)
+  }
+  """
+
   def show(): Unit = {
     val global = newCompiler()
 
@@ -211,5 +220,6 @@ object SingleImp
     run(singleType)
     run(singleTypeInFunction)
     run(singleTypeWithFreeSymbol)
+    run(parameterAnnotation)
   }
 }

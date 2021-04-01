@@ -23,13 +23,13 @@ trait SplainErrors { self: Analyzer with SplainFormatting =>
       .map(ImplicitError.notFound(_, tree, ImplicitErrors.nesting)(param))
       .foreach(err => ImplicitErrors.push(err))
 
-  def splainPushOrReportNotFound(tree: Tree, param: Symbol): Option[String] =
+  def splainPushOrReportNotFound(tree: Tree, param: Symbol, annotationMsg: Option[String]): Option[String] =
     if (settings.implicitsSettingEnable)
       if (ImplicitErrors.nested) {
         splainPushNotFound(tree, param)
         None
       }
-      else pluginsNoImplicitFoundError(param, ImplicitErrors.errors, formatImplicitError(param, ImplicitErrors.errors))
+      else pluginsNoImplicitFoundError(param, ImplicitErrors.errors, formatImplicitError(param, ImplicitErrors.errors, annotationMsg))
     else None
 
   def splainPushNonconformantBonds(
